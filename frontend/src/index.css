@@ -1,0 +1,96 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap");
+@import "tailwindcss";
+
+:root {
+  --surface: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --border: rgba(15, 23, 42, 0.08);
+  --shadow: 0 8px 40px -12px rgba(15, 23, 42, 0.12);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Manrope", sans-serif;
+  color: var(--text);
+  background: var(--surface);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.font-display {
+  font-family: "Sora", sans-serif;
+}
+
+/* Legacy alias — glass on white */
+.glass-panel {
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow);
+}
+
+.field-input {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 0.9rem 1rem;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.field-input:focus {
+  border-color: rgba(14, 165, 233, 0.6);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+}
+
+.field-input::placeholder {
+  color: rgba(100, 116, 139, 0.85);
+}
+
+.primary-button {
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%);
+  padding: 0.85rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+  box-shadow: 0 10px 28px -8px rgba(14, 165, 233, 0.45);
+}
+
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 34px -8px rgba(59, 130, 246, 0.4);
+}
+
+.primary-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pill-button {
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+  color: #0f172a;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.pill-button:hover:not(:disabled) {
+  background: rgba(241, 245, 249, 0.95);
+  border-color: rgba(14, 165, 233, 0.35);
+}
+
+.pill-active {
+  border-color: rgba(14, 165, 233, 0.55);
+  background: rgba(224, 242, 254, 0.9);
+}
