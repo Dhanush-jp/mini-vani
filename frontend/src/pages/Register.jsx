@@ -93,11 +93,11 @@ export default function Register() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#ffffff] p-4">
-      <form onSubmit={onSubmit} className="glass-panel w-full max-w-xl rounded-2xl p-8 text-slate-900 shadow-xl shadow-slate-900/5">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Onboarding</p>
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <form onSubmit={onSubmit} className="glass-panel w-full max-w-xl rounded-2xl p-8 shadow-xl shadow-slate-900/5">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-60">Onboarding</p>
         <h2 className="mt-3 font-display text-4xl font-semibold tracking-tight">Create account</h2>
-        <p className="mb-5 mt-3 text-sm text-slate-600">Use the built-in registration flow for local setup and testing.</p>
+        <p className="mb-5 mt-3 text-sm opacity-80">Use the built-in registration flow for local setup and testing.</p>
 
         {error ? (
           <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p>
@@ -131,9 +131,9 @@ export default function Register() {
           {loading ? "Creating account..." : "Register"}
         </button>
 
-        <p className="mt-4 text-center text-sm text-slate-500">
+        <p className="mt-4 text-center text-sm opacity-60">
           Already have an account?{" "}
-          <Link to="/login" className="font-medium text-sky-600 underline-offset-2 hover:underline">
+          <Link to="/login" className="font-medium text-sky-500 underline-offset-2 hover:underline">
             Sign in
           </Link>
         </p>

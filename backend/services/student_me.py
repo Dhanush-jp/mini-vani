@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from models.entities import Attendance, AttendanceStatus, Student, User
 from services.analytics import build_student_dashboard, resolve_risk_level
+from services.helpers import safe_percentage, safe_float, safe_int
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +28,13 @@ def _summary_for_student(db: Session, student_id: int) -> dict:
         .filter(Attendance.student_id == student_id, Attendance.status == AttendanceStatus.PRESENT)
         .count()
     )
-    attendance_pct = round((present * 100.0 / total), 2) if total else 0
+    attendance_pct = safe_percentage(present, total)
     return {
         "student_id": student_id,
         "attendance_pct": attendance_pct,
-        "sgpa": float(result.sgpa) if result else 0,
-        "cgpa": float(result.cgpa) if result else 0,
-        "backlogs": int(result.backlogs) if result else 0,
+        "sgpa": safe_float(result.sgpa) if result else 0,
+        "cgpa": safe_float(result.cgpa) if result else 0,
+        "backlogs": safe_int(result.backlogs) if result else 0,
     }
 
 

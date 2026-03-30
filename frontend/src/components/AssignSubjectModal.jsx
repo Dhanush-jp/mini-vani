@@ -3,11 +3,15 @@ import Modal from "./Modal";
 
 export default function AssignSubjectModal({ open, onClose, onSubmit, loading, selectedStudent, allSubjects, assignedSubjects }) {
   const [subjectId, setSubjectId] = useState("");
+  const [marks, setMarks] = useState("");
+  const [attendance, setAttendance] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (open) {
       setSubjectId("");
+      setMarks("");
+      setAttendance("");
       setError("");
     }
   }, [open]);
@@ -21,10 +25,20 @@ export default function AssignSubjectModal({ open, onClose, onSubmit, loading, s
       setError("Select a student first.");
       return;
     }
-    const nextError = await onSubmit({
+    const selectedSubject = allSubjects.find(s => s.id === Number(subjectId));
+    
+    const payload = {
       student_id: selectedStudent.id,
       subject_id: Number(subjectId),
-    });
+      subject_name: selectedSubject ? selectedSubject.name : "",
+      marks: Number(marks),
+      attendance_percentage: Number(attendance),
+      semester: selectedSubject ? selectedSubject.semester : 1
+    };
+
+    console.log("Payload:", payload);
+
+    const nextError = await onSubmit(payload);
     if (!nextError) {
       onClose();
     } else {
@@ -49,7 +63,35 @@ export default function AssignSubjectModal({ open, onClose, onSubmit, loading, s
             </option>
           ))}
         </select>
-        <div className="flex justify-end gap-3">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Marks (0-100)</label>
+            <input
+              type="number"
+              className="field-input"
+              value={marks}
+              onChange={(e) => setMarks(e.target.value)}
+              placeholder="e.g. 85"
+              min="0"
+              max="100"
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Attendance %</label>
+            <input
+              type="number"
+              className="field-input"
+              value={attendance}
+              onChange={(e) => setAttendance(e.target.value)}
+              placeholder="e.g. 90"
+              min="0"
+              max="100"
+              required
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-4">
           <button type="button" onClick={onClose} className="pill-button" disabled={loading}>
             Cancel
           </button>

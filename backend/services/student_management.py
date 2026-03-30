@@ -181,10 +181,24 @@ def list_subjects(db: Session) -> list[SubjectOption]:
 
 
 def list_student_subjects(db: Session, student_id: int) -> list[SubjectOption]:
+    """Retrieve all unique subjects assigned to or recorded for a student."""
+    from models.entities import StudentSubject, AcademicRecord, Subject
+
+    # 1. Subjects from StudentSubject (Manual Assignments)
+    q1 = db.query(Subject.id).join(StudentSubject).filter(StudentSubject.student_id == student_id)
+    
+    # 2. Subjects from AcademicRecord (Excel Imports / Result Entries)
+    q2 = db.query(Subject.id).join(AcademicRecord).filter(AcademicRecord.student_id == student_id)
+    
+    # Combined unique IDs
+    subject_ids = [row.id for row in q1.union(q2).all()]
+    
+    if not subject_ids:
+        return []
+
     rows = (
         db.query(Subject)
-        .join(StudentSubject, StudentSubject.subject_id == Subject.id)
-        .filter(StudentSubject.student_id == student_id)
+        .filter(Subject.id.in_(subject_ids))
         .order_by(Subject.semester.asc(), Subject.name.asc())
         .all()
     )

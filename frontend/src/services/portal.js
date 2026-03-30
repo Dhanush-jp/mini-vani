@@ -116,3 +116,59 @@ export async function exportStudents(filters) {
 export async function exportStudent(studentId, filters = {}) {
   return api.post(`/exports/student/${studentId}`, filters, { responseType: "blob" });
 }
+
+export async function uploadExcelFile(file, teacherId = null, onProgress) {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (teacherId != null) {
+    formData.append("teacher_id", String(teacherId));
+  }
+  const { data } = await api.post("/import/excel", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    onUploadProgress: (event) => {
+      if (!onProgress || !event?.total) return;
+      onProgress(Math.round((event.loaded * 100) / event.total));
+    },
+  });
+  return data;
+}
+
+/**
+ * Fetch full semester-by-semester history for a student.
+ * @param {string} role  - caller role (ADMIN/TEACHER use student id path; STUDENT uses /me)
+ * @param {number|null} studentId
+ */
+export async function fetchSemesterHistory(role, studentId = null) {
+  const r = (role || "").toUpperCase();
+  const path =
+    r === "STUDENT"
+      ? "/student/me/semester-history"
+      : `/students/${studentId}/semester-history`;
+  const { data } = await api.get(path);
+  return data;
+}
+
+/**
+ * Compare two semesters for a student.
+ * @param {string} role
+ * @param {number|null} studentId
+ * @param {number} semA
+ * @param {number} semB
+ */
+export async function fetchSemesterComparison(role, studentId, semA, semB) {
+  const r = (role || "").toUpperCase();
+  const path =
+    r === "STUDENT"
+      ? `/student/me/semester-compare`
+      : `/students/${studentId}/semester-compare`;
+  const { data } = await api.get(path, { params: { sem_a: semA, sem_b: semB } });
+  return data;
+}
+
+/**
+ * Fetch a single import audit (for polling background task status).
+ */
+export async function fetchImportAudit(auditId) {
+  const { data } = await api.get(`/import/audits/${auditId}`);
+  return data;
+}

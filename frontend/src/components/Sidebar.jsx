@@ -8,7 +8,11 @@ const ALL_NAV = [
   { to: "/attendance", label: "Attendance", roles: ["ADMIN", "TEACHER"] },
   { to: "/results", label: "Results", roles: ["ADMIN", "TEACHER"] },
   { to: "/analytics", label: "Analytics", roles: ["ADMIN", "TEACHER", "STUDENT"] },
+  { to: "/upload", label: "Upload", roles: ["ADMIN", "TEACHER"] },
   { to: "/export", label: "Export", roles: ["ADMIN", "TEACHER"] },
+  { to: "/subjects", label: "Subjects", roles: ["ADMIN"] },
+  { to: "/settings", label: "Settings", roles: ["ADMIN", "TEACHER", "STUDENT"] },
+  { to: "/issues", label: "Issues", roles: ["ADMIN"] },
 ];
 
 export default function Sidebar() {
@@ -24,10 +28,10 @@ export default function Sidebar() {
       className="glass-panel sticky top-6 flex h-fit w-full shrink-0 flex-col gap-6 rounded-2xl p-5 lg:w-72"
     >
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Learning</p>
-        <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight text-slate-900">Student IQ</h1>
-        <p className="mt-2 text-sm text-slate-500">
-          Role: <span className="font-medium text-slate-700">{role || "Guest"}</span>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-50">Learning</p>
+        <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">Student IQ</h1>
+        <p className="mt-2 text-sm opacity-60">
+          Role: <span className="font-semibold opacity-100">{role || "Guest"}</span>
         </p>
       </div>
 
@@ -40,8 +44,8 @@ export default function Sidebar() {
               [
                 "block rounded-2xl px-4 py-3 text-sm font-medium transition duration-200",
                 isActive
-                  ? "bg-slate-900 text-white shadow-md shadow-slate-900/15"
-                  : "text-slate-600 hover:bg-slate-100/90 hover:text-slate-900",
+                  ? "bg-[var(--accent)] text-white shadow-lg shadow-sky-500/20"
+                  : "opacity-70 hover:bg-[var(--surface-alt)] hover:opacity-100",
               ].join(" ")
             }
           >

@@ -162,3 +162,10 @@ class StudentRecordResponse(BaseModel):
     attendance: list[dict]
     pass_fail_ratio: dict
     risk: dict
+
+class SubjectCreate(BaseModel):
+    subject_id: int | None = Field(default=None, gt=0)
+    subject_name: str | None = Field(default=None, min_length=1)
+    marks: float = Field(ge=0, le=100)
+    attendance_percentage: float = Field(ge=0, le=100)
+    semester: int = Field(default=1, ge=1, le=12)

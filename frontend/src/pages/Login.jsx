@@ -36,17 +36,17 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#ffffff] p-4">
-      <form onSubmit={onSubmit} className="glass-panel w-full max-w-md rounded-2xl p-8 text-slate-900 shadow-xl shadow-slate-900/5">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Secure access</p>
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <form onSubmit={onSubmit} className="glass-panel w-full max-w-md rounded-2xl p-8 shadow-xl shadow-slate-900/5">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-60">Secure access</p>
         <h2 className="mt-3 font-display text-4xl font-semibold tracking-tight">Sign in</h2>
-        <p className="mb-5 mt-3 text-sm text-slate-600">Student intelligence portal for admins, teachers, and students.</p>
+        <p className="mb-5 mt-3 text-sm opacity-80">Student intelligence portal for admins, teachers, and students.</p>
 
         {error ? (
           <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p>
         ) : null}
 
-        <label className="mb-1 block text-xs font-medium text-slate-500">Email</label>
+        <label className="mb-1 block text-xs font-medium opacity-60">Email</label>
         <input
           className="field-input mb-3"
           type="email"
@@ -57,7 +57,7 @@ export default function Login() {
           required
         />
 
-        <label className="mb-1 block text-xs font-medium text-slate-500">Password</label>
+        <label className="mb-1 block text-xs font-medium opacity-60">Password</label>
         <input
           className="field-input mb-5"
           type="password"
@@ -73,9 +73,9 @@ export default function Login() {
           {loading ? "Signing in..." : "Login"}
         </button>
 
-        <p className="mt-4 text-center text-sm text-slate-500">
+        <p className="mt-4 text-center text-sm opacity-60">
           New here?{" "}
-          <Link to="/register" className="font-medium text-sky-600 underline-offset-2 hover:underline">
+          <Link to="/register" className="font-medium text-sky-500 underline-offset-2 hover:underline">
             Create an account
           </Link>
         </p>

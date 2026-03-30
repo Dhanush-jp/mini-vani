@@ -10,6 +10,7 @@ import {
 } from "../components/Charts";
 import ChartCard from "../components/ui/ChartCard";
 import Card from "../components/ui/Card";
+import SemesterHistory from "../components/SemesterHistory";
 import { useAuth } from "../context/AuthContext";
 import { fetchAttendanceHistory, fetchStudentDetail } from "../services/portal";
 import { buildCumulativeAttendanceSeries } from "../utils/attendanceTrend";
@@ -49,11 +50,16 @@ export default function StudentDetail() {
           fetchStudentDetail(role, studentId),
           fetchAttendanceHistory(studentId).catch(() => ({ items: [] })),
         ]);
+        
+        console.log("[StudentDetail] API response:", { detail: d, attendance: h });
+        console.log(`[StudentDetail] Isolated subjects for ${studentId}:`, d.marks?.length || 0);
+
         if (!cancelled) {
           setDetail(d);
           setHistory(h.items || []);
         }
       } catch (err) {
+        console.error("[StudentDetail] Load failed:", err);
         if (!cancelled) setError(formatApiError(err));
       } finally {
         if (!cancelled) setLoading(false);
@@ -184,7 +190,19 @@ export default function StudentDetail() {
         </Card>
       </div>
 
+      {/* Requirement 3: Conditional banner if data is missing but no error */}
+      {!loading && !error && (!detail?.subjects || detail.subjects.length === 0) && (
+        <Card className="border-amber-100 bg-amber-50 p-4 text-center text-sm text-amber-800">
+          No data available for subject records.
+        </Card>
+      )}
+
       <motion.div ref={chartsRef} style={{ y: parallaxY }} className="space-y-6 will-change-transform">
+        {/* ── Semester-by-semester history ──────────────────────────────── */}
+        <Card className="overflow-hidden p-6">
+          <SemesterHistory role={role} studentId={parseInt(studentId)} />
+        </Card>
+
         <div className="grid gap-6 xl:grid-cols-2">
           <ChartCard title="Marks per subject" description="Percentage by course">
             <MarksChart data={(dashboard.marks || []).map((row) => ({ ...row, subject: row.subject_name }))} />

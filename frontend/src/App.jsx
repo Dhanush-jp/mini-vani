@@ -1,3 +1,4 @@
+import { useLayoutEffect } from "react";
 import { Navigate, Route, BrowserRouter, Routes, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import AppLayout from "./components/AppLayout";
@@ -11,6 +12,10 @@ import Attendance from "./pages/Attendance";
 import Results from "./pages/Results";
 import Analytics from "./pages/Analytics";
 import ExportPage from "./pages/Export";
+import UploadPage from "./pages/UploadPage";
+import Settings from "./pages/Settings";
+import Issues from "./pages/Issues";
+import Subjects from "./pages/Subjects";
 
 function StudentDetailRoute() {
   const { studentId } = useParams();
@@ -44,7 +49,11 @@ function AppRoutes() {
         <Route path="/attendance" element={<Attendance />} />
         <Route path="/results" element={<Results />} />
         <Route path="/analytics" element={<Analytics />} />
+        <Route path="/upload" element={<UploadPage />} />
         <Route path="/export" element={<ExportPage />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/issues" element={<Issues />} />
+        <Route path="/subjects" element={<Subjects />} />
       </Route>
       <Route
         path="*"
@@ -57,6 +66,11 @@ function AppRoutes() {
 }
 
 export default function App() {
+  useLayoutEffect(() => {
+    const savedTheme = localStorage.getItem("theme") || "light";
+    document.documentElement.classList.toggle("dark", savedTheme === "dark");
+  }, []);
+
   return (
     <ErrorBoundary>
       <AuthProvider>

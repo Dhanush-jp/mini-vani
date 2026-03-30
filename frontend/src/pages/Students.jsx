@@ -33,6 +33,15 @@ export default function Students() {
     setStudents(data.students?.items || []);
   }, [data.students]);
 
+  useEffect(() => {
+    async function handleExternalRefresh() {
+      await reload();
+      setStatus("Student list refreshed after upload.");
+    }
+    window.addEventListener("students:refresh", handleExternalRefresh);
+    return () => window.removeEventListener("students:refresh", handleExternalRefresh);
+  }, [reload]);
+
   async function applyFilters(nextFilters = filters) {
     if (role === "STUDENT") return;
     try {

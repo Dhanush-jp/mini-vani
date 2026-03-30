@@ -27,7 +27,19 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // StandardResponse Unwrap (Backend refactor requirement 7)
+    // If response matches our new { success, data, message, errors } format,
+    // we return the 'data' payload directly to the frontend services.
+    const body = response.data;
+    if (body && typeof body.success === "boolean") {
+      if (body.success) {
+        // Return only the generic 'data' field to the service caller
+        return { ...response, data: body.data };
+      }
+    }
+    return response;
+  },
   (error) => {
     const status = error.response?.status;
     if (status === 401) {

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from models.entities import Attendance, AttendanceStatus, Grade, RiskAnalysis, SemesterResult, Student, Subject, TeacherStudent, User, UserRole
 from schemas.common import StudentFilter
 from services.access import get_teacher_or_404
+from services.helpers import safe_percentage, safe_float
 
 
 def _teacher_student_ids(db: Session, user: User) -> list[int]:
@@ -95,38 +96,27 @@ def apply_student_filters(db: Session, user: User, filters: StudentFilter) -> It
 
 
 def build_student_dashboard(db: Session, student_id: int) -> dict:
+    from models.entities import AcademicRecord, Subject
+    
     semester_rows = (
         db.query(SemesterResult.semester, SemesterResult.sgpa, SemesterResult.cgpa, SemesterResult.backlogs)
         .filter(SemesterResult.student_id == student_id)
         .order_by(SemesterResult.semester.asc())
         .all()
     )
-    marks_rows = (
+
+    # Use AcademicRecord (source of truth for imported data)
+    academic_rows = (
         db.query(
-            Grade.id.label("grade_id"),
-            Subject.id.label("subject_id"),
+            AcademicRecord,
             Subject.name.label("subject_name"),
-            Subject.code.label("subject_code"),
-            Grade.semester.label("semester"),
-            Grade.marks.label("marks"),
-            Grade.grade.label("grade"),
-            Grade.is_pass.label("is_pass"),
+            Subject.code.label("subject_code")
         )
-        .join(Subject, Subject.id == Grade.subject_id)
-        .filter(Grade.student_id == student_id)
+        .join(Subject, Subject.id == AcademicRecord.subject_id)
+        .filter(AcademicRecord.student_id == student_id)
         .all()
     )
-    attendance_rows = (
-        db.query(
-            Subject.name,
-            func.count(Attendance.id).label("total"),
-            func.sum(case((Attendance.status == AttendanceStatus.PRESENT, 1), else_=0)).label("present"),
-        )
-        .join(Subject, Subject.id == Attendance.subject_id)
-        .filter(Attendance.student_id == student_id)
-        .group_by(Subject.name)
-        .all()
-    )
+
     risk = db.query(RiskAnalysis).filter(RiskAnalysis.student_id == student_id).first()
 
     return {
@@ -134,25 +124,30 @@ def build_student_dashboard(db: Session, student_id: int) -> dict:
         "backlogs": [{"semester": s.semester, "backlogs": s.backlogs} for s in semester_rows],
         "marks": [
             {
-                "id": m.grade_id,
+                "id": row.AcademicRecord.id,
                 "student_id": student_id,
-                "subject_id": m.subject_id,
-                "subject_name": m.subject_name,
-                "subject_code": m.subject_code,
-                "semester": m.semester,
-                "marks": float(m.marks),
-                "grade": m.grade,
-                "is_pass": m.is_pass,
-                "subject": m.subject_name,
+                "subject_id": row.AcademicRecord.subject_id,
+                "subject_name": row.subject_name,
+                "subject_code": row.subject_code,
+                "semester": row.AcademicRecord.semester,
+                "marks": float(row.AcademicRecord.marks),
+                "grade": "N/A", 
+                "is_pass": float(row.AcademicRecord.marks) >= 40,
+                "status": "Pass" if float(row.AcademicRecord.marks) >= 40 else "Fail",
+                "subject": row.subject_name,
             }
-            for m in marks_rows
+            for row in academic_rows
         ],
         "attendance": [
-            {"subject": a.name, "attendance_pct": round((a.present or 0) * 100.0 / a.total, 2) if a.total else 0} for a in attendance_rows
+            {
+                "subject": row.subject_name,
+                "attendance_pct": float(row.AcademicRecord.attendance_percentage)
+            }
+            for row in academic_rows
         ],
         "pass_fail_ratio": {
-            "pass": sum(1 for m in marks_rows if m.is_pass),
-            "fail": sum(1 for m in marks_rows if not m.is_pass),
+            "pass": sum(1 for row in academic_rows if float(row.AcademicRecord.marks) >= 40),
+            "fail": sum(1 for row in academic_rows if float(row.AcademicRecord.marks) < 40),
         },
         "risk": {
             "risk_score": risk.risk_score if risk else None,

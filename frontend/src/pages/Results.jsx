@@ -33,8 +33,12 @@ export default function Results() {
           fetchResults(selectedStudentId),
           fetchStudentSubjects(selectedStudentId),
         ]);
-        setItems(resultResponse.items || []);
-        setAssignedSubjects(subjectResponse.items || []);
+        
+        console.log("Unwrapped Results:", resultResponse);
+        console.log("Unwrapped Subjects:", subjectResponse);
+
+        setItems(resultResponse || []);
+        setAssignedSubjects(subjectResponse || []);
       } catch (err) {
         setStatus(formatApiError(err));
       }
@@ -47,7 +51,7 @@ export default function Results() {
     try {
       await saveResult(payload);
       const response = await fetchResults(payload.student_id);
-      setItems(response.items || []);
+      setItems(response || []);
       setStatus("Result saved.");
       return "";
     } catch (err) {
@@ -61,8 +65,12 @@ export default function Results() {
     setSubjectSaving(true);
     try {
       await assignStudentSubject(payload);
-      const response = await fetchStudentSubjects(payload.student_id);
-      setAssignedSubjects(response.items || []);
+      const [subjects, results] = await Promise.all([
+        fetchStudentSubjects(payload.student_id),
+        fetchResults(payload.student_id)
+      ]);
+      setAssignedSubjects(subjects || []);
+      setItems(results || []);
       setStatus("Subject assigned.");
       return "";
     } catch (err) {
@@ -131,7 +139,7 @@ export default function Results() {
           { key: "semester", label: "Semester" },
           { key: "marks", label: "Marks" },
           { key: "grade", label: "Grade" },
-          { key: "is_pass", label: "Status", render: (value) => (value ? "Pass" : "Fail") },
+          { key: "status", label: "Status" },
         ]}
         rows={items}
         emptyMessage="Select a student to view subject results."

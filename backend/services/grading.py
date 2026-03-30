@@ -6,6 +6,7 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from models.entities import Attendance, AttendanceStatus, Grade, RiskAnalysis, SemesterResult
+from services.helpers import safe_percentage, safe_float, safe_int
 
 GRADE_POINTS = {
     "A+": 10.0,
@@ -50,7 +51,7 @@ def recompute_student_metrics(db: Session, student_id: int) -> None:
     cumulative: list[float] = []
     for semester, sgpa, backlogs in semester_snapshots:
         cumulative.append(sgpa)
-        cgpa = round(sum(cumulative) / len(cumulative), 2)
+        cgpa = round(sum(cumulative) / len(cumulative), 2) if cumulative else 0.0
         row = db.query(SemesterResult).filter(SemesterResult.student_id == student_id, SemesterResult.semester == semester).first()
         if row:
             row.sgpa = sgpa
@@ -75,9 +76,9 @@ def recompute_student_metrics(db: Session, student_id: int) -> None:
     )
     present = float(attendance_row.present or Decimal("0")) if attendance_row else 0.0
     total = int(attendance_row.total or 0) if attendance_row else 0
-    attendance_pct = round((present * 100.0 / total), 2) if total else 0
-    cgpa = float(latest_result.cgpa) if latest_result else 0
-    backlogs = int(latest_result.backlogs) if latest_result else 0
+    attendance_pct = safe_percentage(present, total)
+    cgpa = safe_float(latest_result.cgpa) if latest_result else 0
+    backlogs = safe_int(latest_result.backlogs) if latest_result else 0
 
     risk_score = round(min(10.0, max(0.0, ((100 - attendance_pct) / 20.0) + max(0.0, 7.5 - cgpa) + (backlogs * 0.8))), 2)
     suggestions = []
