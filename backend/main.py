@@ -8,7 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
+<<<<<<< HEAD
 from database.bootstrap import ensure_database_exists, ensure_runtime_schema_compatibility
+=======
+from database.bootstrap import ensure_database_exists
+>>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
 from database.config import settings
 from database.session import Base, engine
 from core.errors import global_exception_handler, validation_exception_handler, sqlalchemy_exception_handler
@@ -30,7 +34,10 @@ async def lifespan(app: FastAPI):
         raise
     try:
         Base.metadata.create_all(bind=engine)
+<<<<<<< HEAD
         ensure_runtime_schema_compatibility(engine)
+=======
+>>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
     except SQLAlchemyError as exc:
         logger.exception("Failed to create/verify database tables: %s", exc)
         raise

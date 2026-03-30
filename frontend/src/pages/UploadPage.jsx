@@ -1,7 +1,11 @@
 import { useMemo, useState, useEffect, useRef } from "react";
+<<<<<<< HEAD
 import { motion } from "framer-motion";
 import FileUpload from "../components/FileUpload";
 import Modal from "../components/Modal";
+=======
+import FileUpload from "../components/FileUpload";
+>>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
 import Card from "../components/ui/Card";
 import { useAuth } from "../context/AuthContext";
 import { uploadExcelFile, fetchImportAudit } from "../services/portal";
@@ -19,10 +23,13 @@ export default function UploadPage() {
   const [result, setResult] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [recentAudits, setRecentAudits] = useState([]);
+<<<<<<< HEAD
   const [reportOpen, setReportOpen] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState("");
   const [selectedReport, setSelectedReport] = useState(null);
+=======
+>>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
 
   const pollTimer = useRef(null);
 
@@ -49,6 +56,7 @@ export default function UploadPage() {
     }
   }
 
+<<<<<<< HEAD
   async function openAuditReport(auditId) {
     setReportOpen(true);
     setReportLoading(true);
@@ -67,6 +75,8 @@ export default function UploadPage() {
     }
   }
 
+=======
+>>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
   // ── Polling logic ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!auditId || (status !== "PENDING" && status !== "PROCESSING")) {
@@ -126,7 +136,10 @@ export default function UploadPage() {
   }
 
   const failurePreview = useMemo(() => {
+<<<<<<< HEAD
     if (Array.isArray(result?.errors)) return result.errors;
+=======
+>>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
     if (!result?.errors_json) return [];
     try {
       return JSON.parse(result.errors_json);
@@ -292,8 +305,21 @@ export default function UploadPage() {
               
               {a.status !== 'PROCESSING' && (
                 <button 
+<<<<<<< HEAD
                   type="button"
                   onClick={() => openAuditReport(a.id)}
+=======
+                  onClick={async () => {
+                    setUploading(true);
+                    try {
+                      const det = await fetchImportAudit(a.id);
+                      setResult(det);
+                      window.scrollTo({ top: 400, behavior: 'smooth' });
+                    } finally {
+                      setUploading(false);
+                    }
+                  }}
+>>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
                   className="mt-4 w-full rounded-lg bg-slate-50 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
                 >
                   View Full Report
@@ -328,6 +354,7 @@ export default function UploadPage() {
           </div>
         ))}
       </div>
+<<<<<<< HEAD
 
       <Modal
         open={reportOpen}
@@ -427,3 +454,12 @@ export default function UploadPage() {
     </div>
   );
 }
+=======
+    </div>
+  );
+}
+
+// Simple motion polyfill if framer-motion is missing or just use simple div
+function motion_div({ children, ...props }) { return <div {...props}>{children}</div>; }
+const motion = { div: motion_div };
+>>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479

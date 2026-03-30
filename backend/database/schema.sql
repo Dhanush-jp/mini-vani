@@ -21,8 +21,11 @@ CREATE TABLE students (
     department VARCHAR(120) NOT NULL,
     year INT NOT NULL,
     section VARCHAR(20) NOT NULL,
+<<<<<<< HEAD
     cgpa FLOAT NOT NULL DEFAULT 0.0,
     sgpa FLOAT NOT NULL DEFAULT 0.0,
+=======
+>>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
     CONSTRAINT fk_students_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

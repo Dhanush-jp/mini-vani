@@ -6,8 +6,12 @@ import logging
 import re
 from urllib.parse import quote_plus
 
+<<<<<<< HEAD
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
+=======
+from sqlalchemy import create_engine, text
+>>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from database.config import settings
@@ -68,6 +72,7 @@ def ensure_database_exists() -> None:
         raise
     finally:
         engine.dispose()
+<<<<<<< HEAD
 
 
 def ensure_runtime_schema_compatibility(engine: Engine) -> None:
@@ -113,3 +118,5 @@ def ensure_runtime_schema_compatibility(engine: Engine) -> None:
         "Runtime schema compatibility applied successfully for columns: %s",
         ", ".join(column_name for column_name, _ in statements),
     )
+=======
+>>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
