@@ -1,0 +1,148 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap");
+@import "tailwindcss";
+
+:root {
+  --surface: #f8fafc;
+  --surface-alt: #ffffff;
+  --text: #0f172a;
+  --text-inverse: #ffffff;
+  --muted: #64748b;
+  --border: rgba(15, 23, 42, 0.08);
+  --shadow: 0 8px 40px -12px rgba(15, 23, 42, 0.12);
+  --glass: rgba(255, 255, 255, 0.72);
+  --field: rgba(255, 255, 255, 0.95);
+  --accent: #0ea5e9;
+  --accent-alt: #3b82f6;
+  --radius: 1.5rem;
+  --chart-grid: #e2e8f0;
+  --chart-text: #64748b;
+}
+
+html.dark {
+  --surface: #020617;
+  --surface-alt: #0f172a;
+  --text: #f8fafc;
+  --text-inverse: #0f172a;
+  --muted: #94a3b8;
+  --border: rgba(255, 255, 255, 0.12);
+  --shadow: 0 8px 40px -12px rgba(0, 0, 0, 0.5);
+  --glass: rgba(15, 23, 42, 0.65);
+  --field: rgba(30, 41, 59, 0.8);
+  --chart-grid: rgba(255, 255, 255, 0.1);
+  --chart-text: #94a3b8;
+}
+
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Manrope", sans-serif;
+  color: var(--text);
+  background: var(--surface);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.font-display {
+  font-family: "Sora", sans-serif;
+}
+
+.glass-panel {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--glass);
+  backdrop-filter: blur(24px);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+
+.field-input {
+  width: 100%;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--field);
+  padding: 0.9rem 1.1rem;
+  color: var(--text);
+  outline: none;
+  font-size: 0.95rem;
+}
+
+.field-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.12);
+}
+
+.field-input::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.primary-button {
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-alt) 100%);
+  padding: 0.9rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+  box-shadow: 0 10px 25px -8px rgba(14, 165, 233, 0.4);
+  cursor: pointer;
+  border: none;
+}
+
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px -8px rgba(14, 165, 233, 0.5);
+}
+
+.primary-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.primary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pill-button {
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--field);
+  padding: 0.65rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.pill-button:hover:not(:disabled) {
+  background: var(--surface-alt);
+  border-color: var(--accent);
+}
+
+.pill-active {
+  border-color: var(--accent);
+  background: rgba(14, 165, 233, 0.1);
+  color: var(--accent);
+}
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 10px;
+  border: 2px solid var(--surface);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text);
+}
