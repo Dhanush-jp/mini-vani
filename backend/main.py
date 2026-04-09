@@ -2,22 +2,22 @@ import logging
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
-<<<<<<< HEAD
+from core.errors import (
+    global_exception_handler,
+    sqlalchemy_exception_handler,
+    validation_exception_handler,
+)
+from core.logging_config import setup_logging
 from database.bootstrap import ensure_database_exists, ensure_runtime_schema_compatibility
-=======
-from database.bootstrap import ensure_database_exists
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
 from database.config import settings
 from database.session import Base, engine
-from core.errors import global_exception_handler, validation_exception_handler, sqlalchemy_exception_handler
-from core.logging_config import setup_logging
-from routers import admin, auth, exports, student, teacher, upload, issues, subjects, import_routes
+from routers import admin, auth, exports, import_routes, issues, student, subjects, teacher, upload
 
 setup_logging()
 logger = logging.getLogger("backend")
@@ -26,7 +26,7 @@ logger = logging.getLogger("backend")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup: ensure DB exists and create ORM tables. Shutdown: log only."""
-    logger.info("Application starting…")
+    logger.info("Application starting...")
     try:
         ensure_database_exists()
     except Exception as exc:
@@ -34,10 +34,7 @@ async def lifespan(app: FastAPI):
         raise
     try:
         Base.metadata.create_all(bind=engine)
-<<<<<<< HEAD
         ensure_runtime_schema_compatibility(engine)
-=======
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
     except SQLAlchemyError as exc:
         logger.exception("Failed to create/verify database tables: %s", exc)
         raise
@@ -49,7 +46,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan)
 
 # CORS must wrap the whole app (register before routers; last registered = outermost in Starlette).
-# Browsers may use http://127.0.0.1:5173, http://localhost:5173, or http://[::1]:5173 — include all.
+# Browsers may use http://127.0.0.1:5173, http://localhost:5173, or http://[::1]:5173. Include all.
 if settings.cors_allow_all:
     logger.warning("CORS_ALLOW_ALL=true: allowing all origins (credentials disabled). Dev only.")
     app.add_middleware(
@@ -75,11 +72,13 @@ else:
 app.add_exception_handler(Exception, global_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
-app.add_exception_handler(HTTPException, lambda r, e: JSONResponse(
-    status_code=e.status_code, 
-    content={"success": False, "message": e.detail, "data": None, "errors": []}
-))
-
+app.add_exception_handler(
+    HTTPException,
+    lambda _request, exc: JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "message": exc.detail, "data": None, "errors": []},
+    ),
+)
 
 app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(teacher.router, prefix=settings.api_v1_prefix)

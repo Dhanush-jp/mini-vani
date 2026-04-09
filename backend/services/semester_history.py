@@ -1,6 +1,5 @@
 """
 semester_history.py  ─  services/semester_history.py
-=====================================================
 Builds rich semester-by-semester performance data for a student:
   - SGPA, CGPA, backlogs per semester
   - Per-subject marks + attendance for every semester (from AcademicRecord)

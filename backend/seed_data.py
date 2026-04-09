@@ -6,11 +6,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 
 from auth.security import hash_password
-<<<<<<< HEAD
 from database.bootstrap import ensure_database_exists, ensure_runtime_schema_compatibility
-=======
-from database.bootstrap import ensure_database_exists
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
 from database.session import Base, SessionLocal, engine
 from models.entities import Attendance, AttendanceStatus, Export, Grade, RiskAnalysis, SemesterResult, Student, StudentSubject, Subject, Teacher, TeacherStudent, User, UserRole
 from services.grading import compute_grade, recompute_student_metrics
@@ -67,10 +63,7 @@ def create_user(db, name: str, email: str, role: UserRole, password: str = "Pass
 def seed():
     ensure_database_exists()
     Base.metadata.create_all(bind=engine)
-<<<<<<< HEAD
     ensure_runtime_schema_compatibility(engine)
-=======
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
 
     db = SessionLocal()
     random.seed(42)

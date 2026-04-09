@@ -85,6 +85,21 @@ JWT_ALGORITHM=HS256
 JWT_EXPIRE_MINUTES=120
 
 ML_SERVICE_URL=http://localhost:8001
+GROQ_API_KEY=paste_your_groq_api_key_here
+GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_ENDPOINT=https://api.groq.com/openai/v1/chat/completions
+GROQ_TIMEOUT_SECONDS=45
+```
+
+Groq key paste location:
+
+- Main backend Excel import flow: `backend/.env`
+- Separate Groq ingestion service: `excel_ingestion_service/.env`
+
+Paste it exactly like this:
+
+```env
+GROQ_API_KEY=your_groq_api_key_here
 ```
 
 Run the backend:

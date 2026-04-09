@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 from __future__ import annotations
 
 import io
@@ -20,36 +19,17 @@ from database.config import settings
 from models.entities import AttendanceStatus, ImportAudit, ImportStatus, User
 from services.academic_repository import (
     calculate_attendance_percentage,
-=======
-import io
-import json
-import time
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-
-import pandas as pd
-from loguru import logger
-from sqlalchemy.orm import Session
-
-from models.entities import ImportAudit, ImportStatus, User
-from schemas.excel_row import ExcelRow
-from services.academic_repository import (
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
     create_import_audit,
     ensure_student_subject_link,
     ensure_teacher_link,
     get_or_create_student,
     get_or_create_subject,
-<<<<<<< HEAD
     load_attendance_cache_scoped,
-=======
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
     load_record_cache_scoped,
     load_student_cache_scoped,
     load_subject_cache,
     resolve_teacher,
     upsert_academic_record,
-<<<<<<< HEAD
     upsert_attendance_record,
     upsert_semester_result,
 )
@@ -59,7 +39,6 @@ SAMPLE_ROW_LIMIT = 10
 HEADER_SCAN_LIMIT = 12
 ATTENDANCE_FALLBACK_SUBJECT = "Daily Attendance"
 ATTENDANCE_FALLBACK_SEMESTER = 0
-
 BASE_MAPPING_FIELDS = {
     "roll_number",
     "student_name",
@@ -158,11 +137,6 @@ class AIStructureResponse(BaseModel):
         return tokens
 
 
-=======
-    upsert_semester_result,
-)
-
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
 @dataclass
 class ImportStats:
     total_rows: int = 0
@@ -170,7 +144,6 @@ class ImportStats:
     updated: int = 0
     skipped: int = 0
     failed: int = 0
-<<<<<<< HEAD
     errors: list[dict[str, Any]] = field(default_factory=list)
 
     def add_error(self, row: int, message: str) -> None:
@@ -226,17 +199,17 @@ def parse_mapping_value(value: str) -> tuple[str, str | None]:
     raise ValueError(f"Unsupported mapping value '{value}'.")
 
 
-def is_date_column(col: Any) -> bool:
+def is_date_column(column: Any) -> bool:
     try:
-        pd.to_datetime(col, errors="raise", dayfirst=True)
+        pd.to_datetime(column, errors="raise", dayfirst=True)
         return True
     except Exception:
         return False
 
 
-def parse_date_column(col: Any) -> date | None:
+def parse_date_column(column: Any) -> date | None:
     try:
-        return pd.to_datetime(col, errors="raise", dayfirst=True).date()
+        return pd.to_datetime(column, errors="raise", dayfirst=True).date()
     except Exception:
         return None
 
@@ -254,7 +227,6 @@ def read_structured_dataframe(content: bytes, filename: str, header_row_index: i
         dataframe = pd.read_csv(buffer, header=header_row_index, dtype=object)
     else:
         dataframe = pd.read_excel(buffer, header=header_row_index, dtype=object, engine="openpyxl")
-
     dataframe = dataframe.dropna(how="all").reset_index(drop=True)
     dataframe.columns = dedupe_columns([normalize_column_name(column) for column in dataframe.columns])
     return dataframe
@@ -293,57 +265,395 @@ def serialize_preview_value(value: Any) -> Any:
     return value
 
 
+def coerce_non_negative_int(value: Any, *, default: int = 0) -> int:
+    if isinstance(value, bool):
+        return default
+    try:
+        parsed = int(float(str(value).strip()))
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed >= 0 else default
+
+
+def coerce_bool(value: Any, *, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "off"}:
+        return False
+    return default
+
+
+def normalize_subject_name(value: Any) -> str:
+    return " ".join(str(value).split()).strip()
+
+
+def extract_header_candidates(raw_df: pd.DataFrame, header_row_index: int) -> list[str]:
+    if raw_df.empty:
+        return []
+    safe_index = min(max(header_row_index, 0), len(raw_df) - 1)
+    raw_headers = raw_df.iloc[safe_index].tolist()
+    return dedupe_columns([normalize_column_name(column) for column in raw_headers])
+
+
+def infer_mapping_from_column_name(column_name: str, *, file_type: str, has_dates: bool) -> str:
+    normalized = normalize_column_name(column_name)
+    compact = normalized.replace(" ", "")
+    if not normalized:
+        return "ignore"
+    if is_date_column(normalized):
+        return "ignore"
+    if "roll" in normalized and ("no" in normalized or "number" in normalized):
+        return "roll_number"
+    if normalized in {"name", "student name", "student"}:
+        return "student_name"
+    if "email" in normalized:
+        return "email"
+    if "department" in normalized or normalized == "dept":
+        return "department"
+    if "section" in normalized:
+        return "section"
+    if normalized == "year":
+        return "year"
+    if normalized in {"semester", "sem"}:
+        return "semester"
+    if normalized in {"subject", "subject name", "course", "course name"}:
+        return "subject"
+    if normalized in {"marks", "mark", "score", "total", "grade"}:
+        return "marks"
+    if "attendance" in normalized and "%" in normalized:
+        return "percentage"
+    if "attendance" in normalized or normalized in {"status", "present absent"}:
+        return "attendance"
+    if "percentage" in normalized or compact in {"attendance%", "attendancepercentage"}:
+        return "percentage"
+    if normalized == "cgpa":
+        return "cgpa"
+    if normalized == "sgpa":
+        return "sgpa"
+    if "backlog" in normalized:
+        return "backlogs"
+    if "detain" in normalized:
+        return "detained"
+    if file_type == FileType.ATTENDANCE.value and has_dates:
+        return "ignore"
+    return "ignore"
+
+
+def normalize_mapping_target(
+    target: Any,
+    *,
+    source_column: str,
+    file_type: str,
+    has_dates: bool,
+) -> str:
+    if target is None:
+        return infer_mapping_from_column_name(source_column, file_type=file_type, has_dates=has_dates)
+
+    normalized = normalize_mapping_value(target)
+    if not normalized:
+        return infer_mapping_from_column_name(source_column, file_type=file_type, has_dates=has_dates)
+
+    aliases = {
+        "roll no": "roll_number",
+        "roll number": "roll_number",
+        "rollnumber": "roll_number",
+        "student roll number": "roll_number",
+        "student name": "student_name",
+        "name": "student_name",
+        "full name": "student_name",
+        "mail": "email",
+        "e-mail": "email",
+        "dept": "department",
+        "branch": "department",
+        "sem": "semester",
+        "subject name": "subject",
+        "course": "subject",
+        "course name": "subject",
+        "mark": "marks",
+        "score": "marks",
+        "numeric": "marks",
+        "status": "attendance",
+        "present/absent": "attendance",
+        "attendance status": "attendance",
+        "attendance percentage": "percentage",
+        "percent": "percentage",
+        "cgpa score": "cgpa",
+        "sgpa score": "sgpa",
+        "backlog": "backlogs",
+    }
+    normalized = aliases.get(normalized, normalized)
+
+    if normalized.startswith("subject:"):
+        subject_name = normalize_subject_name(normalized.split(":", 1)[1]).lower()
+        return f"subject_marks:{subject_name}" if subject_name else "ignore"
+
+    for prefix in PREFIX_MAPPINGS:
+        if normalized.startswith(prefix):
+            subject_name = normalize_subject_name(normalized.split(":", 1)[1]).lower()
+            return f"{prefix}{subject_name}" if subject_name else "ignore"
+
+    if normalized.startswith("date:") or is_date_column(normalized):
+        return "ignore"
+
+    try:
+        parse_mapping_value(normalized)
+        return normalized
+    except ValueError:
+        return infer_mapping_from_column_name(source_column, file_type=file_type, has_dates=has_dates)
+
+
+def normalize_columns_mapping(
+    raw_columns: Any,
+    *,
+    header_candidates: list[str],
+    file_type: str,
+    has_dates: bool,
+) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    if isinstance(raw_columns, dict):
+        items = raw_columns.items()
+    elif isinstance(raw_columns, list):
+        items = zip(header_candidates, raw_columns)
+    else:
+        items = []
+
+    for raw_source, raw_target in items:
+        source = normalize_column_name(raw_source)
+        if not source:
+            continue
+        normalized[source] = normalize_mapping_target(
+            raw_target,
+            source_column=source,
+            file_type=file_type,
+            has_dates=has_dates,
+        )
+    if not normalized:
+        for source in header_candidates:
+            normalized[source] = infer_mapping_from_column_name(source, file_type=file_type, has_dates=has_dates)
+    return normalized
+
+
+def normalize_string_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, dict):
+        iterable = value.values()
+    elif isinstance(value, list):
+        iterable = value
+    else:
+        iterable = [value]
+
+    normalized_items: list[str] = []
+    seen: set[str] = set()
+    for item in iterable:
+        text = normalize_subject_name(item)
+        if not text:
+            continue
+        lowered = text.casefold()
+        if lowered in seen:
+            continue
+        normalized_items.append(text)
+        seen.add(lowered)
+    return normalized_items
+
+
+def normalize_file_type(value: Any, *, columns: dict[str, str], has_dates: bool) -> str:
+    normalized = normalize_mapping_value(value or "")
+    aliases = {
+        "student_report": FileType.MIXED.value,
+        "report": FileType.MIXED.value,
+        "mark": FileType.MARKS.value,
+        "score": FileType.MARKS.value,
+        "daily_attendance": FileType.ATTENDANCE.value,
+    }
+    normalized = aliases.get(normalized, normalized)
+    has_marks = any(mapped == "marks" or mapped.startswith("subject_marks:") for mapped in columns.values())
+    has_attendance = any(mapped == "attendance" or mapped.startswith("subject_attendance:") for mapped in columns.values())
+    has_percentage = any(mapped == "percentage" or mapped.startswith("subject_percentage:") for mapped in columns.values())
+
+    if has_dates or has_attendance:
+        if has_marks or has_percentage:
+            return FileType.MIXED.value
+        return FileType.ATTENDANCE.value
+    if has_marks and (has_attendance or has_percentage):
+        return FileType.MIXED.value
+    if has_marks:
+        return FileType.MARKS.value
+    if has_percentage:
+        return FileType.ATTENDANCE.value
+    if normalized in {item.value for item in FileType}:
+        return normalized
+    return FileType.MARKS.value
+
+
+def normalize_sheet_format(value: Any, *, file_type: str, has_dates: bool, columns: dict[str, str]) -> str:
+    normalized = normalize_mapping_value(value or "")
+    aliases = {
+        "table": SheetFormat.WIDE.value,
+        "tabular": SheetFormat.WIDE.value,
+        "sheet": SheetFormat.WIDE.value,
+    }
+    normalized = aliases.get(normalized, normalized)
+    if has_dates:
+        return SheetFormat.DAILY.value
+    if any(mapped.startswith("subject_marks:") for mapped in columns.values()):
+        return SheetFormat.WIDE.value
+    if "subject" in columns.values():
+        return SheetFormat.LONG.value
+    if file_type == FileType.ATTENDANCE.value and any(
+        mapped == "percentage" or mapped.startswith("subject_percentage:") for mapped in columns.values()
+    ):
+        return SheetFormat.SUMMARY.value
+    if normalized in {item.value for item in SheetFormat}:
+        return normalized
+    return SheetFormat.WIDE.value
+
+
+def normalize_value_type(value: Any, *, file_type: str, has_dates: bool, columns: dict[str, str]) -> str:
+    normalized = normalize_mapping_value(value or "")
+    if normalized == "numeric":
+        normalized = ""
+
+    aliases = {
+        "score": ValueType.MARKS.value,
+        "mark": ValueType.MARKS.value,
+        "present_absent": ValueType.ATTENDANCE.value,
+        "status": ValueType.ATTENDANCE.value,
+        "percent": ValueType.PERCENTAGE.value,
+    }
+    normalized = aliases.get(normalized, normalized)
+    has_marks = any(mapped == "marks" or mapped.startswith("subject_marks:") for mapped in columns.values())
+    has_percentage = any(mapped == "percentage" or mapped.startswith("subject_percentage:") for mapped in columns.values())
+    has_attendance = any(mapped == "attendance" or mapped.startswith("subject_attendance:") for mapped in columns.values())
+
+    if file_type == FileType.ATTENDANCE.value and (has_dates or has_attendance):
+        return ValueType.ATTENDANCE.value
+    if has_percentage and not has_marks:
+        return ValueType.PERCENTAGE.value
+    if has_marks:
+        return ValueType.MARKS.value
+    if normalized in {item.value for item in ValueType}:
+        return normalized
+    return ValueType.MARKS.value
+
+
+def infer_primary_key(raw_value: Any, columns: dict[str, str], header_candidates: list[str]) -> str:
+    normalized = normalize_column_name(raw_value)
+    if normalized and normalized in columns:
+        return normalized
+    for column, mapped in columns.items():
+        if mapped == "roll_number":
+            return column
+    for header in header_candidates:
+        if "roll" in header and ("no" in header or "number" in header):
+            return header
+    return ""
+
+
+def sanitize_ai_structure_payload(filename: str, raw_payload: Any, raw_df: pd.DataFrame) -> dict[str, Any]:
+    if not isinstance(raw_payload, dict):
+        raise ValueError("AI response must be a JSON object.")
+
+    header_row_index = coerce_non_negative_int(raw_payload.get("header_row_index"), default=0)
+    header_candidates = extract_header_candidates(raw_df, header_row_index)
+    detected_has_dates = any(is_date_column(column) for column in header_candidates)
+    provisional_has_dates = coerce_bool(
+        raw_payload.get("has_dates"),
+        default=detected_has_dates,
+    )
+    provisional_has_dates = provisional_has_dates or detected_has_dates
+
+    provisional_file_type_value = normalize_mapping_value(raw_payload.get("file_type") or "")
+    provisional_file_type = {
+        "student_report": FileType.MIXED.value,
+    }.get(provisional_file_type_value, provisional_file_type_value or FileType.MARKS.value)
+
+    columns = normalize_columns_mapping(
+        raw_payload.get("columns"),
+        header_candidates=header_candidates,
+        file_type=provisional_file_type,
+        has_dates=provisional_has_dates,
+    )
+    file_type = normalize_file_type(raw_payload.get("file_type"), columns=columns, has_dates=provisional_has_dates)
+    sheet_format = normalize_sheet_format(
+        raw_payload.get("format"),
+        file_type=file_type,
+        has_dates=provisional_has_dates,
+        columns=columns,
+    )
+    value_type = normalize_value_type(
+        raw_payload.get("value_type"),
+        file_type=file_type,
+        has_dates=provisional_has_dates,
+        columns=columns,
+    )
+    subjects = normalize_string_list(raw_payload.get("subjects"))
+    attendance_values = [str(item) for item in normalize_string_list(raw_payload.get("attendance_values"))]
+
+    for mapped in columns.values():
+        for prefix in PREFIX_MAPPINGS:
+            if mapped.startswith(prefix):
+                subject_name = normalize_subject_name(mapped.split(":", 1)[1])
+                if subject_name:
+                    subjects.append(subject_name)
+
+    deduped_subjects: list[str] = []
+    seen_subjects: set[str] = set()
+    for subject in subjects:
+        lowered = subject.casefold()
+        if lowered in seen_subjects:
+            continue
+        deduped_subjects.append(subject)
+        seen_subjects.add(lowered)
+
+    if file_type == FileType.ATTENDANCE.value and not attendance_values:
+        attendance_values = ["P", "A"]
+
+    sanitized = {
+        "header_row_index": header_row_index,
+        "primary_key": infer_primary_key(raw_payload.get("primary_key"), columns, header_candidates),
+        "columns": columns,
+        "file_type": file_type,
+        "format": sheet_format,
+        "subjects": deduped_subjects,
+        "value_type": value_type,
+        "attendance_values": attendance_values,
+        "has_dates": provisional_has_dates,
+    }
+    logger.info("Sanitized AI structure response for '{}': {}", filename, sanitized)
+    return sanitized
+
+
 def analyze_file_structure(filename: str, raw_df: pd.DataFrame) -> AIStructureResponse:
-    api_key = settings.groq_api_key
-    if not api_key:
+    if not settings.groq_api_key:
         raise ValueError("GROQ_API_KEY is not configured.")
 
-    request_payload = {
-        "rows": build_structure_preview(raw_df),
-    }
-
+    request_payload = {"rows": build_structure_preview(raw_df)}
     system_prompt = (
         "You are a strict Excel structure analyzer.\n"
-        "You MUST return ONLY valid JSON that matches this exact schema:\n"
-        "{\n"
-        '  "header_row_index": number,\n'
-        '  "primary_key": string,\n'
-        '  "columns": {"original_column_name": "mapped_field_name"},\n'
-        '  "file_type": "marks" | "attendance" | "mixed",\n'
-        '  "format": "wide" | "long" | "summary" | "daily",\n'
-        '  "subjects": [],\n'
-        '  "value_type": "marks" | "attendance" | "percentage",\n'
-        '  "attendance_values": [],\n'
-        '  "has_dates": true | false\n'
-        "}\n"
-        'The input format is {"rows": [...]}.\n'
-        'Use the row_index values inside rows to choose header_row_index (0-based).\n'
-        'The "columns" field MUST be an object, never a list.\n'
-        'The "subjects" field MUST always be a list.\n'
-        'The "attendance_values" field MUST always be a list.\n'
-        "Never return null values.\n"
-        "Never invent columns that are not visible in the detected header row.\n"
-        "Detect the roll number column and return its original header name as primary_key.\n"
-        "Map the primary key column to roll_number inside columns.\n"
-        "Allowed mapped_field_name values are: roll_number, student_name, email, department, section, year, semester, subject, marks, attendance, percentage, cgpa, sgpa, backlogs, detained, date, ignore, subject_marks:<subject_name>, subject_attendance:<subject_name>, subject_percentage:<subject_name>.\n"
-        "If columns look like dates and row values look like P/A attendance, set file_type=attendance, format=daily, value_type=attendance, and has_dates=true.\n"
-        "Return ONLY valid JSON."
+        "Return ONLY valid JSON with header_row_index, primary_key, columns, file_type, format, "
+        "subjects, value_type, attendance_values, has_dates.\n"
+        "columns must be an object. subjects and attendance_values must be lists. No null values.\n"
+        "Map the detected primary key column to roll_number.\n"
+        "Allowed mapped values: roll_number, student_name, email, department, section, year, semester, "
+        "subject, marks, attendance, percentage, cgpa, sgpa, backlogs, detained, date, ignore, "
+        "subject_marks:<subject_name>, subject_attendance:<subject_name>, subject_percentage:<subject_name>."
     )
-
     base_messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": json.dumps(request_payload, ensure_ascii=True, default=str)},
     ]
 
-    content = request_ai_structure_completion(filename, base_messages, api_key)
+    content = request_ai_structure_completion(filename, base_messages)
     try:
-        return parse_ai_structure_response(filename, content)
+        return parse_ai_structure_response(filename, content, raw_df)
     except ValueError as exc:
-        logger.warning(
-            "AI response for '{}' failed strict validation on first attempt; retrying once. Error: {}",
-            filename,
-            exc,
-        )
+        logger.warning("AI response for '{}' failed strict validation; retrying once: {}", filename, exc)
 
     retry_messages = [
         *base_messages,
@@ -351,17 +661,20 @@ def analyze_file_structure(filename: str, raw_df: pd.DataFrame) -> AIStructureRe
         {
             "role": "user",
             "content": (
-                "Your previous response was invalid. Return ONLY valid JSON matching the schema exactly. "
-                "Fix these rules: columns must be an object, subjects must be a list, attendance_values must be a list, "
+                "Your previous response was invalid. Return ONLY valid JSON. "
+                "columns must be an object, subjects must be a list, attendance_values must be a list, "
                 "primary_key must be a string, and null values are not allowed."
             ),
         },
     ]
-    retry_content = request_ai_structure_completion(filename, retry_messages, api_key)
-    return parse_ai_structure_response(filename, retry_content)
+    return parse_ai_structure_response(
+        filename,
+        request_ai_structure_completion(filename, retry_messages),
+        raw_df,
+    )
 
 
-def request_ai_structure_completion(filename: str, messages: list[dict[str, str]], api_key: str) -> str:
+def request_ai_structure_completion(filename: str, messages: list[dict[str, str]]) -> str:
     body = {
         "model": settings.groq_model,
         "temperature": 0,
@@ -369,15 +682,13 @@ def request_ai_structure_completion(filename: str, messages: list[dict[str, str]
         "messages": messages,
     }
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {settings.groq_api_key}",
         "Content-Type": "application/json",
     }
-
     logger.info("Requesting AI structure analysis for '{}'.", filename)
     with httpx.Client(timeout=settings.groq_timeout_seconds) as client:
         response = client.post(settings.groq_endpoint, headers=headers, json=body)
         response.raise_for_status()
-
     payload = response.json()
     content = payload["choices"][0]["message"]["content"]
     logger.info("AI structure response received for '{}'.", filename)
@@ -385,48 +696,42 @@ def request_ai_structure_completion(filename: str, messages: list[dict[str, str]
     return content
 
 
-def parse_ai_structure_response(filename: str, content: str) -> AIStructureResponse:
+def parse_ai_structure_response(filename: str, content: str, raw_df: pd.DataFrame) -> AIStructureResponse:
     try:
-        parsed = json.loads(content)
-        return AIStructureResponse.model_validate(parsed)
-    except (json.JSONDecodeError, ValidationError) as exc:
+        raw_payload = json.loads(content)
+    except json.JSONDecodeError as exc:
+        logger.error("Invalid AI JSON for '{}': {}", filename, content)
+        raise ValueError(f"Invalid AI response: {exc}") from exc
+
+    try:
+        sanitized_payload = sanitize_ai_structure_payload(filename, raw_payload, raw_df)
+        return AIStructureResponse.model_validate(sanitized_payload)
+    except (ValidationError, ValueError) as exc:
         logger.error("Invalid AI response for '{}': {}", filename, content)
         raise ValueError(f"Invalid AI response: {exc}") from exc
 
 
 def validate_ai_response(ai_response: AIStructureResponse, raw_df: pd.DataFrame, dataframe: pd.DataFrame) -> None:
     if ai_response.header_row_index >= len(raw_df):
-        raise ValueError(
-            f"header_row_index {ai_response.header_row_index} is outside the file (rows={len(raw_df)})."
-        )
-
+        raise ValueError(f"header_row_index {ai_response.header_row_index} is outside the file.")
     column_set = set(dataframe.columns)
     unknown_columns = set(ai_response.columns.keys()).difference(column_set)
     if unknown_columns:
         raise ValueError(f"AI referenced columns that do not exist: {sorted(unknown_columns)}")
-
     if ai_response.primary_key not in column_set:
         raise ValueError(f"AI primary_key '{ai_response.primary_key}' does not exist in the dataframe.")
-
     if ai_response.primary_key not in ai_response.columns:
-        raise ValueError(
-            f"AI primary_key '{ai_response.primary_key}' must be present in the columns mapping."
-        )
-
+        raise ValueError(f"AI primary_key '{ai_response.primary_key}' must be present in the columns mapping.")
     if ai_response.columns[ai_response.primary_key] != "roll_number":
         raise ValueError(
             f"AI primary_key '{ai_response.primary_key}' must map to 'roll_number', "
             f"got '{ai_response.columns[ai_response.primary_key]}'."
         )
-
     if not columns_for_mapping(ai_response, "roll_number"):
         raise ValueError("AI response must map at least one column to roll_number.")
-
     if ai_response.file_type in {FileType.MARKS, FileType.MIXED}:
-        has_marks = bool(columns_for_mapping(ai_response, "marks")) or bool(columns_for_prefix(ai_response, "subject_marks"))
-        if not has_marks:
+        if not columns_for_mapping(ai_response, "marks") and not columns_for_prefix(ai_response, "subject_marks"):
             raise ValueError("Marks or mixed files must include marks mappings.")
-
     if ai_response.file_type in {FileType.ATTENDANCE, FileType.MIXED} and ai_response.has_dates:
         if not any(is_date_column(column) for column in dataframe.columns):
             raise ValueError("AI indicated date columns, but none were detected in the dataframe headers.")
@@ -491,9 +796,7 @@ def parse_int(value: Any, *, minimum: int | None = None, maximum: int | None = N
     parsed = parse_float(value, minimum=minimum, maximum=maximum)
     if parsed is None:
         return None
-    if float(parsed).is_integer():
-        return int(parsed)
-    return None
+    return int(parsed) if float(parsed).is_integer() else None
 
 
 def parse_bool(value: Any) -> bool | None:
@@ -514,7 +817,6 @@ def parse_bool(value: Any) -> bool | None:
 def parse_attendance_status(value: Any, attendance_values: list[str]) -> AttendanceStatus | None:
     if is_empty(value):
         return None
-
     normalized = str(value).strip().lower()
     token_map = {
         "p": AttendanceStatus.PRESENT,
@@ -529,9 +831,8 @@ def parse_attendance_status(value: Any, attendance_values: list[str]) -> Attenda
 
 
 def resolve_attendance_subject_name(payload: dict[str, Any], ai_response: AIStructureResponse) -> str | None:
-    subject_name = payload["subject"]
-    if subject_name:
-        return subject_name
+    if payload["subject"]:
+        return payload["subject"]
     if len(ai_response.subjects) == 1:
         return ai_response.subjects[0]
     if ai_response.file_type == FileType.ATTENDANCE and ai_response.format == SheetFormat.DAILY:
@@ -556,11 +857,9 @@ def get_first_value(row: pd.Series, ai_response: AIStructureResponse, mapping: s
 
 def resolve_row_payload(row: pd.Series, ai_response: AIStructureResponse) -> tuple[dict[str, Any], list[str]]:
     errors: list[str] = []
-
     roll_number = normalize_roll_number(get_first_value(row, ai_response, "roll_number"))
     if not roll_number:
         errors.append("Missing roll_number.")
-
     return (
         {
             "roll_number": roll_number,
@@ -569,7 +868,7 @@ def resolve_row_payload(row: pd.Series, ai_response: AIStructureResponse) -> tup
             "department": normalize_text(get_first_value(row, ai_response, "department")),
             "section": normalize_text(get_first_value(row, ai_response, "section")),
             "year": parse_int(get_first_value(row, ai_response, "year"), minimum=1, maximum=4),
-            "semester": parse_int(get_first_value(row, ai_response, "semester"), minimum=1, maximum=8),
+            "semester": parse_int(get_first_value(row, ai_response, "semester"), minimum=0, maximum=8),
             "cgpa": parse_float(get_first_value(row, ai_response, "cgpa"), minimum=0, maximum=10),
             "sgpa": parse_float(get_first_value(row, ai_response, "sgpa"), minimum=0, maximum=10),
             "backlogs": parse_int(get_first_value(row, ai_response, "backlogs"), minimum=0),
@@ -594,28 +893,15 @@ def apply_outcome(stats: ImportStats, row_number: int, outcome: str, label: str)
     elif outcome == "skipped":
         logger.info("Row {} {} unchanged.", row_number, label)
 
-=======
-    errors: List[Dict[str, Any]] = field(default_factory=list)
-
-    def add_error(self, row: int, msg: str):
-        self.failed += 1
-        self.errors.append({"row": row, "error": msg})
-        logger.warning(f"Row {row} failed: {msg}")
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
 
 async def start_asynchronous_import(
     db: Session,
     current_user: User,
     filename: str,
     content: bytes,
-<<<<<<< HEAD
     teacher_id: int | None = None,
 ) -> int:
-=======
-    teacher_id: Optional[int] = None,
-) -> int:
-    """Creates a PENDING audit record and returns its ID."""
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
+    del content, teacher_id
     audit = create_import_audit(
         db,
         uploaded_by_id=current_user.id,
@@ -623,60 +909,32 @@ async def start_asynchronous_import(
         status=ImportStatus.PENDING,
     )
     db.commit()
-<<<<<<< HEAD
     logger.info("Initiated import for {} (audit_id={})", filename, audit.id)
     return audit.id
 
 
-=======
-    logger.info(f"Initiated import for {filename} (Audit ID: {audit.id})")
-    return audit.id
-
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
 def process_excel_background_task(
     db_factory: Any,
     audit_id: int,
     filename: str,
     content: bytes,
     teacher_user_id: int,
-<<<<<<< HEAD
     teacher_id_form: int | None = None,
 ) -> None:
     db: Session = db_factory()
     stats = ImportStats()
     audit: ImportAudit | None = None
-
     try:
         audit = db.get(ImportAudit, audit_id)
         if not audit:
             logger.error("Audit {} not found in background task.", audit_id)
             return
-
         user = db.get(User, teacher_user_id)
         if not user:
-            logger.error("User {} not found in background task.", teacher_user_id)
-=======
-    teacher_id_form: Optional[int] = None,
-) -> None:
-    """Production-grade Excel processing background worker with chunking and live updates."""
-    db: Session = db_factory()
-    stats = ImportStats()
-    
-    try:
-        audit = db.get(ImportAudit, audit_id)
-        if not audit:
-            logger.error(f"Audit {audit_id} not found in background task")
+            _fail_audit(db, audit, f"User {teacher_user_id} not found.")
             return
-            
-        user = db.get(User, teacher_user_id)
-        if not user:
-            logger.error(f"User {teacher_user_id} not found in background task")
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
-            return
-
         audit.status = ImportStatus.PROCESSING
         db.commit()
-<<<<<<< HEAD
 
         start_time = time.time()
         raw_df = read_raw_dataframe(content, filename)
@@ -696,17 +954,6 @@ def process_excel_background_task(
         stats.total_rows = len(dataframe)
         audit.total_rows = stats.total_rows
         db.commit()
-
-        logger.info(
-            "Detected file structure for '{}': file_type={}, format={}, value_type={}, header_row_index={}",
-            filename,
-            ai_response.file_type.value,
-            ai_response.format.value,
-            ai_response.value_type.value,
-            ai_response.header_row_index,
-        )
-        logger.info("Columns after AI-driven header handling: {}", dataframe.columns.tolist())
-
         teacher = resolve_teacher(db, user, teacher_id_form)
         student_cache, subject_cache, record_cache, attendance_cache = prepare_caches(db, dataframe, ai_response)
         context = ImportContext(
@@ -730,191 +977,6 @@ def process_excel_background_task(
             _fail_audit(db, audit, "Processing timeout.")
             return
 
-=======
-        
-        logger.info(f"Starting background processing for Audit {audit_id}...")
-        start_time = time.time()
-
-        # 1. Read Excel optimally
-        try:
-            df = pd.read_excel(io.BytesIO(content), engine="openpyxl")
-            logger.info(f"READ SUCCESS: {filename} - {len(df)} rows found.")
-        except Exception as e:
-            _fail_audit(db, audit, f"Failed to read Excel file: {str(e)}")
-            logger.error(f"PANDAS READ ERROR: {str(e)}")
-            return
-
-        # 2. Normalize and Map Columns (Requirement 1 & 2)
-        try:
-            df.columns = df.columns.astype(str).str.strip().str.lower()
-            column_mapping = {
-                "name": "student_name", "student name": "student_name", "student": "student_name",
-                "roll no": "roll_number", "roll_no": "roll_number", "roll number": "roll_number", 
-                "rollnumber": "roll_number", "roll_number": "roll_number",
-                "dept": "department", "department": "department",
-                "sem": "semester", "semester": "semester",
-                "sub": "subject", "subject": "subject",
-                "scores": "marks", "marks": "marks",
-                "attendance": "attendance", "attendance %": "attendance", 
-                "attendance_percentage": "attendance",
-                "backlogs": "backlogs", "history of backlogs": "backlogs",
-                "detained": "detained",
-                "email": "email", "e-mail": "email",
-                "year": "year", "year_of_study": "year",
-                "section": "section", "class": "section",
-                "cgpa": "cgpa", "sgpa": "sgpa"
-            }
-            df.rename(columns=column_mapping, inplace=True)
-            logger.info(f"Columns after normalization & mapping: {df.columns.tolist()}")
-
-            # 3. Handle Missing Columns (Requirement 3 & 4 & 8)
-            default_values = {
-                "student_name": "Unknown",
-                "email": None,
-                "roll_number": None,
-                "department": "General",
-                "section": "A",
-                "cgpa": 0.0,
-                "sgpa": 0.0,
-                "year": 1,
-                "semester": 1,
-                "subject": "General",
-                "marks": 0.0,
-                "attendance": 0.0,
-                "backlogs": 0,
-                "detained": False
-            }
-            
-            missing_cols = []
-            for col, default in default_values.items():
-                if col not in df.columns:
-                    logger.warning(f"Column missing: {col}, filling with default: {default}")
-                    df[col] = default
-                    missing_cols.append(col)
-            
-            if missing_cols:
-                stats.add_error(0, f"Warning: These columns were missing and filled with defaults: {missing_cols}")
-
-        except Exception as e:
-            logger.exception("Error during column processing")
-            _fail_audit(db, audit, f"Column processing failed: {str(e)}")
-            return
-
-        stats.total_rows = len(df)
-        audit.total_rows = stats.total_rows
-        db.commit()
-
-        # 3. Pre-load Caches
-        teacher = resolve_teacher(db, user, teacher_id_form)
-        unique_rolls = df["roll_number"].dropna().unique().tolist()
-        unique_subjects = df["subject"].dropna().unique().tolist()
-
-        student_cache = load_student_cache_scoped(db, unique_rolls)
-        subject_cache = load_subject_cache(db, unique_subjects)
-        student_ids = [s.id for s in student_cache.values()]
-        record_cache = load_record_cache_scoped(db, student_ids)
-
-        # 4. Row-by-row processing
-        for idx, row_data in df.iterrows():
-            row_num = idx + 2
-            
-            if time.time() - start_time > 900: # 15 min safety
-                _fail_audit(db, audit, "Processing timeout.")
-                return
-
-            if idx % 1000 == 0 and idx > 0:
-                logger.info(f"Progress: {idx}/{stats.total_rows} for Audit {audit_id}")
-                audit.created = stats.created
-                audit.updated = stats.updated
-                audit.failed = stats.failed
-                audit.skipped = stats.skipped
-                db.commit()
-
-            if row_data.isnull().all():
-                stats.total_rows -= 1
-                continue
-                
-            try:
-                # Requirement 5 & 8: Safe row processing
-                clean_data = row_data.to_dict()
-                for k, v in clean_data.items():
-                    if pd.isna(v): clean_data[k] = None
-                
-                # Critical field: roll_number is ONLY identifier. 
-                # Student name has default "Unknown". Email has special logic.
-                roll_number = clean_data.get("roll_number")
-                if not roll_number:
-                    logger.warning(f"Row {idx} skipped: missing roll_number")
-                    stats.skipped += 1
-                    continue
-
-                # Dummy email if missing (needed for DB uniqueness)
-                if not clean_data.get("email"):
-                    clean_data["email"] = f"{roll_number}@student.edu"
-                
-                # Internal 'student_name' -> schema 'name'
-                if "student_name" in clean_data:
-                    clean_data["name"] = clean_data.pop("student_name")
-                
-                parsed = ExcelRow(**clean_data)
-
-                # B. Database Logic
-                with db.begin_nested():
-                    # Get/Create student
-                    student, created_student = get_or_create_student(
-                        db, student_cache,
-                        name=parsed.name, email=parsed.email,
-                        department=parsed.department, year=parsed.year,
-                        section=parsed.section, roll_number=parsed.roll_number,
-                        cgpa=parsed.cgpa or 0.0, sgpa=parsed.sgpa or 0.0
-                    )
-                    if created_student:
-                        logger.info(f"Student processed (CREATED): {parsed.roll_number}")
-                    else:
-                        logger.info(f"Student processed (UPDATED): {parsed.roll_number}")
-
-                    ensure_teacher_link(db, student, teacher)
-
-                    # Get/Create subject
-                    subject = get_or_create_subject(db, subject_cache, name=parsed.subject, semester=parsed.semester)
-                    ensure_student_subject_link(db, student, subject)
-
-                    # Upsert academic record (Subject record)
-                    outcome = upsert_academic_record(
-                        db, record_cache,
-                        student_id=student.id, subject_id=subject.id,
-                        semester=parsed.semester, marks=parsed.marks,
-                        attendance_percentage=parsed.attendance,
-                        backlogs=parsed.backlogs, detained=parsed.detained
-                    )
-                    
-                    if outcome == "created": 
-                        stats.created += 1
-                        logger.info(f"Subject {parsed.subject} created for Student {parsed.roll_number}")
-                    elif outcome == "updated": 
-                        stats.updated += 1
-                        logger.info(f"Subject {parsed.subject} updated for Student {parsed.roll_number}")
-                    else: 
-                        stats.skipped += 1
-                        logger.info(f"Subject processed (UNCHANGED): {parsed.subject}")
-
-                    # Upsert semester-level GPA if provided
-                    upsert_semester_result(
-                        db, student_id=student.id, semester=parsed.semester,
-                        sgpa=parsed.sgpa, cgpa=parsed.cgpa, backlogs=parsed.backlogs
-                    )
-                
-                logger.info(f"Row {idx} processed successfully")
-
-                if (idx + 1) % 500 == 0:
-                    db.flush()
-
-            except Exception as e:
-                db.rollback()
-                stats.add_error(row_num, str(e))
-
-        # 5. Finalize
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
         audit.status = ImportStatus.COMPLETED
         audit.created = stats.created
         audit.updated = stats.updated
@@ -922,16 +984,6 @@ def process_excel_background_task(
         audit.failed = stats.failed
         audit.errors_json = json.dumps(stats.errors[:1000])
         db.commit()
-<<<<<<< HEAD
-        logger.info(
-            "Import {} finished. created={} updated={} skipped={} failed={}",
-            audit_id,
-            stats.created,
-            stats.updated,
-            stats.skipped,
-            stats.failed,
-        )
-
     except Exception as exc:
         logger.exception("Critical failure in background task for audit {}", audit_id)
         if audit is not None:
@@ -947,36 +999,23 @@ def prepare_caches(
 ) -> tuple[dict[str, Any], dict[str, list[Any]], dict[tuple[int, int, int], Any], dict[tuple[int, int, date], Any]]:
     roll_numbers: set[str] = set()
     subject_names: set[str] = {subject for subject in ai_response.subjects if subject}
-
     roll_columns = columns_for_mapping(ai_response, "roll_number")
     subject_columns = columns_for_mapping(ai_response, "subject")
     subject_names.update(columns_for_prefix(ai_response, "subject_marks").values())
     subject_names.update(columns_for_prefix(ai_response, "subject_attendance").values())
     subject_names.update(columns_for_prefix(ai_response, "subject_percentage").values())
-
-    if (
-        ai_response.file_type == FileType.ATTENDANCE
-        and ai_response.format == SheetFormat.DAILY
-        and not subject_names
-    ):
+    if ai_response.file_type == FileType.ATTENDANCE and ai_response.format == SheetFormat.DAILY and not subject_names:
         subject_names.add(ATTENDANCE_FALLBACK_SUBJECT)
-        logger.warning(
-            "Attendance file does not expose a subject column or single AI subject; using fallback subject '{}'.",
-            ATTENDANCE_FALLBACK_SUBJECT,
-        )
-
+        logger.warning("Attendance file missing subject context; using '{}'.", ATTENDANCE_FALLBACK_SUBJECT)
     for _, row in dataframe.iterrows():
         for column in roll_columns:
-            if column in row.index:
-                normalized_roll = normalize_roll_number(row[column])
-                if normalized_roll:
-                    roll_numbers.add(normalized_roll)
+            normalized_roll = normalize_roll_number(row.get(column))
+            if normalized_roll:
+                roll_numbers.add(normalized_roll)
         for column in subject_columns:
-            if column in row.index:
-                subject_name = normalize_text(row[column])
-                if subject_name:
-                    subject_names.add(subject_name)
-
+            subject_name = normalize_text(row.get(column))
+            if subject_name:
+                subject_names.add(subject_name)
     student_cache = load_student_cache_scoped(db, list(roll_numbers))
     subject_cache = load_subject_cache(db, list(subject_names))
     student_ids = [student.id for student in student_cache.values()]
@@ -992,14 +1031,12 @@ def process_marks(dataframe: pd.DataFrame, ai_response: AIStructureResponse, con
     wide_mark_columns = columns_for_prefix(ai_response, "subject_marks")
     wide_attendance_columns = columns_for_prefix(ai_response, "subject_attendance")
     wide_percentage_columns = columns_for_prefix(ai_response, "subject_percentage")
-
     for row_index, row in dataframe.iterrows():
         row_number = excel_row_number(row_index, context.header_row_index)
         payload, payload_errors = resolve_row_payload(row, ai_response)
         if payload_errors:
             context.stats.add_skip(row_number, "; ".join(payload_errors))
             continue
-
         student, _ = get_or_create_student(
             context.db,
             context.student_cache,
@@ -1014,7 +1051,6 @@ def process_marks(dataframe: pd.DataFrame, ai_response: AIStructureResponse, con
             teacher_department=context.teacher.department,
         )
         ensure_teacher_link(context.db, student, context.teacher)
-
         if payload["semester"] is not None and any(
             value is not None for value in (payload["sgpa"], payload["cgpa"], payload["backlogs"])
         ):
@@ -1026,12 +1062,9 @@ def process_marks(dataframe: pd.DataFrame, ai_response: AIStructureResponse, con
                 cgpa=payload["cgpa"],
                 backlogs=payload["backlogs"],
             )
-
         row_had_operation = False
-
         if long_subject_column and long_marks_column:
-            row_had_operation = process_long_marks_row(row_number, row, payload, student, ai_response, context) or row_had_operation
-
+            row_had_operation = process_long_marks_row(row_number, payload, student, context) or row_had_operation
         if wide_mark_columns:
             row_had_operation = process_wide_marks_row(
                 row_number,
@@ -1043,40 +1076,31 @@ def process_marks(dataframe: pd.DataFrame, ai_response: AIStructureResponse, con
                 wide_percentage_columns,
                 context,
             ) or row_had_operation
-
         if not row_had_operation and (long_subject_column or wide_mark_columns):
             logger.info("Row {} had no valid marks records to write.", row_number)
 
 
 def process_long_marks_row(
     row_number: int,
-    row: pd.Series,
     payload: dict[str, Any],
     student: Any,
-    ai_response: AIStructureResponse,
     context: ImportContext,
 ) -> bool:
-    subject_name = payload["subject"]
-    if not subject_name:
+    if not payload["subject"]:
         context.stats.add_skip(row_number, "Marks row skipped: subject is missing.")
         return False
     if payload["marks"] is None:
         context.stats.add_skip(row_number, "Marks row skipped: marks value is missing or invalid.")
         return False
-
     try:
         subject = get_or_create_subject(
             context.db,
             context.subject_cache,
-            name=subject_name,
+            name=payload["subject"],
             semester=payload["semester"],
         )
         ensure_student_subject_link(context.db, student, subject)
-
-        attendance_percentage = payload["percentage"]
-        if attendance_percentage is None:
-            attendance_percentage = payload["attendance"]
-
+        attendance_percentage = payload["percentage"] if payload["percentage"] is not None else payload["attendance"]
         outcome = upsert_academic_record(
             context.db,
             context.record_cache,
@@ -1106,28 +1130,24 @@ def process_wide_marks_row(
     context: ImportContext,
 ) -> bool:
     wrote = False
-
     for column_name, subject_name in wide_mark_columns.items():
         cell_value = row.get(column_name)
         if is_empty(cell_value):
             continue
-
         marks = parse_float(cell_value, minimum=0, maximum=100)
         if marks is None:
             context.stats.add_error(row_number, f"Invalid marks value '{cell_value}' for subject '{subject_name}'.")
             continue
-
         attendance_percentage = None
-        for attendance_column, mapped_subject in wide_percentage_columns.items():
+        for percentage_column, mapped_subject in wide_percentage_columns.items():
             if mapped_subject.casefold() == subject_name.casefold():
-                attendance_percentage = parse_float(row.get(attendance_column), minimum=0, maximum=100)
+                attendance_percentage = parse_float(row.get(percentage_column), minimum=0, maximum=100)
                 break
         if attendance_percentage is None:
             for attendance_column, mapped_subject in wide_attendance_columns.items():
                 if mapped_subject.casefold() == subject_name.casefold():
                     attendance_percentage = parse_float(row.get(attendance_column), minimum=0, maximum=100)
                     break
-
         try:
             subject = get_or_create_subject(
                 context.db,
@@ -1151,7 +1171,6 @@ def process_wide_marks_row(
             wrote = wrote or outcome != "skipped"
         except Exception as exc:
             context.stats.add_error(row_number, str(exc))
-
     return wrote
 
 
@@ -1160,18 +1179,15 @@ def process_attendance(dataframe: pd.DataFrame, ai_response: AIStructureResponse
     long_date_column = next(iter(columns_for_mapping(ai_response, "date")), None)
     long_attendance_column = next(iter(columns_for_mapping(ai_response, "attendance")), None)
     long_percentage_column = next(iter(columns_for_mapping(ai_response, "percentage")), None)
-
     if ai_response.file_type == FileType.MIXED and not date_columns and not long_date_column:
         logger.info("Mixed file has no explicit attendance dates; attendance summary is handled by marks processing.")
         return
-
     for row_index, row in dataframe.iterrows():
         row_number = excel_row_number(row_index, context.header_row_index)
         payload, payload_errors = resolve_row_payload(row, ai_response)
         if payload_errors:
             context.stats.add_skip(row_number, "; ".join(payload_errors))
             continue
-
         student, _ = get_or_create_student(
             context.db,
             context.student_cache,
@@ -1186,55 +1202,31 @@ def process_attendance(dataframe: pd.DataFrame, ai_response: AIStructureResponse
             teacher_department=context.teacher.department,
         )
         ensure_teacher_link(context.db, student, context.teacher)
-
         subject_name = resolve_attendance_subject_name(payload, ai_response)
         subject_semester = resolve_subject_semester(subject_name, payload["semester"])
-
         if date_columns:
-            process_daily_attendance_row(
-                row_number=row_number,
-                row=row,
-                payload=payload,
-                student=student,
-                subject_name=subject_name,
-                subject_semester=subject_semester,
-                date_columns=date_columns,
-                ai_response=ai_response,
-                context=context,
-            )
-
+            process_daily_attendance_row(row_number, row, student, subject_name, subject_semester, date_columns, ai_response, context)
         if long_date_column and long_attendance_column:
             process_long_attendance_row(
-                row_number=row_number,
-                row=row,
-                payload=payload,
-                student=student,
-                subject_name=subject_name,
-                subject_semester=subject_semester,
-                long_date_column=long_date_column,
-                long_attendance_column=long_attendance_column,
-                ai_response=ai_response,
-                context=context,
+                row_number,
+                row,
+                student,
+                subject_name,
+                subject_semester,
+                long_date_column,
+                long_attendance_column,
+                ai_response,
+                context,
             )
-
         if ai_response.file_type == FileType.ATTENDANCE and not date_columns and long_percentage_column:
             process_summary_attendance_row(
-                row_number=row_number,
-                row=row,
-                payload=payload,
-                student=student,
-                subject_name=subject_name,
-                subject_semester=subject_semester,
-                percentage_column=long_percentage_column,
-                context=context,
+                row_number, row, student, subject_name, subject_semester, long_percentage_column, context
             )
 
 
 def process_daily_attendance_row(
-    *,
     row_number: int,
     row: pd.Series,
-    payload: dict[str, Any],
     student: Any,
     subject_name: str | None,
     subject_semester: int | None,
@@ -1245,33 +1237,19 @@ def process_daily_attendance_row(
     if not subject_name:
         context.stats.add_skip(row_number, "Attendance row skipped: subject is missing and AI did not provide one.")
         return
-
     try:
-        subject = get_or_create_subject(
-            context.db,
-            context.subject_cache,
-            name=subject_name,
-            semester=subject_semester,
-        )
+        subject = get_or_create_subject(context.db, context.subject_cache, name=subject_name, semester=subject_semester)
         ensure_student_subject_link(context.db, student, subject)
-
         wrote_attendance = False
         for column_name in date_columns:
             attendance_date = parse_date_column(column_name)
             if attendance_date is None:
                 continue
-
             status = parse_attendance_status(row.get(column_name), ai_response.attendance_values)
             if status is None:
                 if not is_empty(row.get(column_name)):
-                    logger.warning(
-                        "Row {} date column '{}' has unsupported attendance token '{}'.",
-                        row_number,
-                        column_name,
-                        row.get(column_name),
-                    )
+                    logger.warning("Row {} date column '{}' has unsupported token '{}'.", row_number, column_name, row.get(column_name))
                 continue
-
             outcome = upsert_attendance_record(
                 context.db,
                 context.attendance_cache,
@@ -1282,13 +1260,8 @@ def process_daily_attendance_row(
             )
             apply_outcome(context.stats, row_number, outcome, f"attendance record {subject.name} {attendance_date}")
             wrote_attendance = wrote_attendance or outcome != "skipped"
-
         if wrote_attendance:
-            percentage = calculate_attendance_percentage(
-                context.db,
-                student_id=student.id,
-                subject_id=subject.id,
-            )
+            percentage = calculate_attendance_percentage(context.db, student_id=student.id, subject_id=subject.id)
             if percentage is not None:
                 outcome = upsert_academic_record(
                     context.db,
@@ -1304,10 +1277,8 @@ def process_daily_attendance_row(
 
 
 def process_long_attendance_row(
-    *,
     row_number: int,
     row: pd.Series,
-    payload: dict[str, Any],
     student: Any,
     subject_name: str | None,
     subject_semester: int | None,
@@ -1319,24 +1290,16 @@ def process_long_attendance_row(
     if not subject_name:
         context.stats.add_skip(row_number, "Attendance row skipped: subject is missing.")
         return
-
     attendance_date = parse_date_column(row.get(long_date_column))
     if attendance_date is None:
         context.stats.add_error(row_number, f"Invalid attendance date '{row.get(long_date_column)}'.")
         return
-
     status = parse_attendance_status(row.get(long_attendance_column), ai_response.attendance_values)
     if status is None:
         context.stats.add_skip(row_number, f"Invalid attendance token '{row.get(long_attendance_column)}'.")
         return
-
     try:
-        subject = get_or_create_subject(
-            context.db,
-            context.subject_cache,
-            name=subject_name,
-            semester=subject_semester,
-        )
+        subject = get_or_create_subject(context.db, context.subject_cache, name=subject_name, semester=subject_semester)
         ensure_student_subject_link(context.db, student, subject)
         outcome = upsert_attendance_record(
             context.db,
@@ -1352,10 +1315,8 @@ def process_long_attendance_row(
 
 
 def process_summary_attendance_row(
-    *,
     row_number: int,
     row: pd.Series,
-    payload: dict[str, Any],
     student: Any,
     subject_name: str | None,
     subject_semester: int | None,
@@ -1365,19 +1326,12 @@ def process_summary_attendance_row(
     if not subject_name:
         context.stats.add_skip(row_number, "Attendance summary row skipped: subject is missing.")
         return
-
     percentage = parse_float(row.get(percentage_column), minimum=0, maximum=100)
     if percentage is None:
         context.stats.add_skip(row_number, f"Invalid attendance percentage '{row.get(percentage_column)}'.")
         return
-
     try:
-        subject = get_or_create_subject(
-            context.db,
-            context.subject_cache,
-            name=subject_name,
-            semester=subject_semester,
-        )
+        subject = get_or_create_subject(context.db, context.subject_cache, name=subject_name, semester=subject_semester)
         ensure_student_subject_link(context.db, student, subject)
         outcome = upsert_academic_record(
             context.db,
@@ -1399,32 +1353,12 @@ def process_summary_attendance_row(
 
 
 def _fail_audit(db: Session, audit: ImportAudit, message: str) -> None:
-=======
-        logger.info(f"Import {audit_id} finished. Created: {stats.created}, Updated: {stats.updated}")
-
-    except Exception as e:
-        logger.exception(f"Critical failure in background task for Audit {audit_id}")
-        _fail_audit(db, audit, f"System error: {str(e)}")
-    finally:
-        db.close()
-
-def _fail_audit(db: Session, audit: ImportAudit, message: str):
-    """Safely mark an audit as failed."""
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
     try:
         audit.status = ImportStatus.FAILED
         errors = json.loads(audit.errors_json) if audit.errors_json else []
         errors.append({"row": 0, "error": message})
-<<<<<<< HEAD
         audit.errors_json = json.dumps(errors[:1000])
         db.commit()
     except Exception:
         db.rollback()
         logger.error("Could not update audit {} status to FAILED.", audit.id)
-=======
-        audit.errors_json = json.dumps(errors[:10])
-        db.commit()
-    except:
-        db.rollback()
-        logger.error("Could not update audit status to FAILED")
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479

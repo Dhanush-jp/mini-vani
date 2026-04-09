@@ -1,5 +1,4 @@
 import json
-import traceback
 from datetime import datetime
 from typing import List
 
@@ -86,8 +85,7 @@ async def upload_academic_excel(
             )
         )
     except Exception as exc:
-        traceback.print_exc()
-        logger.error(f"UPLOAD ERROR for {file.filename}: {str(exc)}")
+        logger.exception("UPLOAD ERROR for %s", file.filename)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Excel upload failed: {str(exc)}"

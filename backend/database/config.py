@@ -16,11 +16,7 @@ class Settings(BaseSettings):
     db_host: str = "127.0.0.1"
     db_port: int = 3306
     db_user: str = "root"
-<<<<<<< HEAD
     db_password: str = "root"
-=======
-    db_password: str = "bhavani68"
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
     db_name: str = "student_intelligence"
 
     secret_key: str = "change_me_in_env"
@@ -28,13 +24,10 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 120
 
     ml_service_url: str = "http://127.0.0.1:8001"
-<<<<<<< HEAD
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
     groq_endpoint: str = "https://api.groq.com/openai/v1/chat/completions"
     groq_timeout_seconds: int = 45
-=======
->>>>>>> ea6b7ff31a97e9ad4b4c4ec3310d6e06de6a5479
 
     # Comma-separated list, e.g. "http://localhost:5173,http://127.0.0.1:5173"
     cors_origins: str = (
